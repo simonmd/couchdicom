@@ -3,7 +3,7 @@ require 'rubygems'
 require 'find'
 require 'active_record'
 require 'couchrest'
-require 'couchrest_extended_document'
+require 'couchrest_model'
 require 'dicom' # version 0.9.2
 require 'rmagick'
 # require "iconv"
@@ -27,11 +27,16 @@ DB = SERVER.database!('couchwado-plus-images')
 DB.bulk_save_cache_limit = 500
 
 # Define the directory to be read
-DIRS = ["/Users/simonmd/Desktop/DATASETS"]
+DIRS = ["/Users/simonmd/Desktop/DATASETS/BOUVIER"]
 JPGDIR = "/Users/simonmd/Desktop/WADOS"
 
+#def generate_docuid
+#  self.docuid
+#end
+
 # Class to generate a CouchDB extended document
-class Dicomdoc < CouchRest::ExtendedDocument
+class Dicomdoc < CouchRest::Model::Base
+  mass_assign_any_attribute true
   use_database DB
   unique_id :slug
   property :slug, :read_only => true
@@ -131,6 +136,7 @@ files.each_index do |i|
     currentdicom.docuid = h["t00080018"].to_s
     # Create the attachment from the actual dicom file
     currentdicom.create_attachment({:name => 'imagedata', :file => file, :content_type => 'application/dicom'})
+    
     # Load pixel data to ImageMagick class
     log.info("Attempting to load pixel data for file #{files[i]} ...")
     if dcm.image
@@ -147,6 +153,7 @@ files.each_index do |i|
     else
       log.warn("could not read pixel data for file #{files[i]} ...")
     end
+
     # Save the CouchDB document
     begin
       currentdicom.save
@@ -158,6 +165,7 @@ files.each_index do |i|
     end
 
   end
+
   # Log processing time for the file
   iteration_end_time = Time.now
   iterationtime = iteration_end_time - iteration_start_time

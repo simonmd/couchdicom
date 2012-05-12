@@ -1,14 +1,18 @@
 # Modules required:
 require 'rubygems'
 require 'find'
-require 'active_record'
 require 'couchrest'
 require 'couchrest_model'
-require 'dicom' # version 0.9.2
+require 'dicom'
 require 'rmagick'
-# require "iconv"
-
 include DICOM
+
+# Constants
+DIRS = ["/Users/simonmd/Desktop/DATASETS/BOUVIER"] # Define the directory to be read
+JPGDIR = "/Users/simonmd/Desktop/WADOS" # Define the directory where JPEGS should be stored
+DBURL = "http://admin:admin@localhost:5984/couchdicom" # Define Database URL. 
+DB_BULK_SAVE_CACHE_LIMIT = 500 # Define Bulk save cache limit
+
 # Intialize logger
 log = Logger.new('couchdicom_import.log')
 log.level = Logger::WARN
@@ -17,22 +21,11 @@ log.info("Program started")
 DICOM.logger = log
 DICOM.logger.level = Logger::DEBUG
 
-# Define CouchDB server
-SERVER = CouchRest.new
-
 # Create CouchDB database if it doesn't already exist
-DB = SERVER.database!('couchwado-plus-images')
+DB = CouchRest.database!(DBURL)
 
 # Set the limit of documents for bulk updating
-DB.bulk_save_cache_limit = 500
-
-# Define the directory to be read
-DIRS = ["/Users/simonmd/Desktop/DATASETS/BOUVIER"]
-JPGDIR = "/Users/simonmd/Desktop/WADOS"
-
-#def generate_docuid
-#  self.docuid
-#end
+DB.bulk_save_cache_limit = DB_BULK_SAVE_CACHE_LIMIT
 
 # Class to generate a CouchDB extended document
 class Dicomdoc < CouchRest::Model::Base

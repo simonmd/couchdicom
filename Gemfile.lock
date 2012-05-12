@@ -1,0 +1,36 @@
+GEM
+  remote: http://rubygems.org/
+  specs:
+    activemodel (3.2.3)
+      activesupport (= 3.2.3)
+      builder (~> 3.0.0)
+    activesupport (3.2.3)
+      i18n (~> 0.6)
+      multi_json (~> 1.0)
+    builder (3.0.0)
+    couchrest (1.1.2)
+      mime-types (~> 1.15)
+      multi_json (~> 1.0.0)
+      rest-client (~> 1.6.1)
+    couchrest_model (1.1.2)
+      activemodel (~> 3.0)
+      couchrest (~> 1.1.2)
+      mime-types (~> 1.15)
+      tzinfo (~> 0.3.22)
+    dicom (0.9.3)
+    i18n (0.6.0)
+    mime-types (1.18)
+    multi_json (1.0.4)
+    rest-client (1.6.7)
+      mime-types (>= 1.16)
+    rmagick (2.13.1)
+    tzinfo (0.3.33)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  couchrest
+  couchrest_model
+  dicom
+  rmagick

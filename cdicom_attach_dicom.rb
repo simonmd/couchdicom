@@ -11,11 +11,11 @@ require 'rmagick'
 include DICOM
 # Intialize logger
 log = Logger.new('couchdicom_import.log')
-  log.level = Logger::WARN
-  log.debug("Created logger")
-  log.info("Program started")
-  DICOM.logger = log
-  DICOM.logger.level = Logger::DEBUG
+log.level = Logger::WARN
+log.debug("Created logger")
+log.info("Program started")
+DICOM.logger = log
+DICOM.logger.level = Logger::DEBUG
 
 # Define CouchDB server
 SERVER = CouchRest.new
@@ -136,7 +136,7 @@ files.each_index do |i|
     currentdicom.docuid = h["t00080018"].to_s
     # Create the attachment from the actual dicom file
     currentdicom.create_attachment({:name => 'imagedata', :file => file, :content_type => 'application/dicom'})
-    
+
     # Load pixel data to ImageMagick class
     log.info("Attempting to load pixel data for file #{files[i]} ...")
     if dcm.image
@@ -147,7 +147,7 @@ files.each_index do |i|
       # Write the jpeg for WADO
       image.write(wadoimg_path)
       # Read to insert in attachment (SURELY this can be done directly)
-      wadofile = File.new(wadoimg_path) 
+      wadofile = File.new(wadoimg_path)
       # Create an attachment from the created jpeg
       currentdicom.create_attachment({:name => 'wadojpg', :file => wadofile, :content_type => 'image/jpeg'})
     else
@@ -158,8 +158,8 @@ files.each_index do |i|
     begin
       currentdicom.save
       # Uncomment if bulk saving is desired (Little performance gain, bottleneck is in dicom reads)
-        # currentdicom.save(bulk  = true)
-    # If an error ocurrs, raise exception and log it
+      # currentdicom.save(bulk  = true)
+      # If an error ocurrs, raise exception and log it
     rescue Exception => exc
       log.warn("Could not save file #{files[i]} to database; Error: #{exc.message}")
     end

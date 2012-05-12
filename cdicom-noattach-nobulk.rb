@@ -4,9 +4,9 @@ require 'find'
 require 'active_record'
 require 'couchrest'
 require 'couchrest_extended_document'
-require 'dicom' # version 0.8
+require 'dicom' # version 0.9.2
 require 'narray'
-require "iconv"
+#require "iconv"
 require "pony"
 
 include DICOM
@@ -15,15 +15,16 @@ log = Logger.new('couchdicom_import.log')
   log.level = Logger::WARN
   log.debug("Created logger")
   log.info("Program started")
+  DICOM.logger = log
 
 # Create CouchDB database if it doesn't already exist
-DB     = CouchRest.database!('http://localhost:5984/couchwado')
+DB = CouchRest.database!('http://localhost:5984/couchwado')
 
 # Set the limit of documents for bulk updating
 DB.bulk_save_cache_limit = 500
 
 # Define the directory to be read
-DIRS = ["/DICOM directory"]
+DIRS = ["/Users/simonmd/Desktop/DATASETS"]
 
 # Class to generate a CouchDB extended document
 class Dicomdoc < CouchRest::ExtendedDocument
@@ -60,8 +61,8 @@ end
 def extract_value(element)
   # Read value as CouchDB value for that key:
   cdbvalue = element.value
-  # Convert encoding to UTF-8
-  cdbvalue = Iconv.conv("UTF-8","ISO_8859-1",cdbvalue) if cdbvalue.class == String
+  # Convert encoding to UTF-8 with Ruby 1.9 'encode' method
+  cdbvalue = cdbvalue.encode('utf-8', 'iso-8859-1') if cdbvalue.class == String
   return cdbvalue
 end
 
@@ -73,7 +74,7 @@ def process_children(parent_element)
     if element.children?
       value = process_children(element)
       key = extract_key(element)
-    elsif element.is_a?(DataElement)
+    elsif element.is_a?(Element)
       key = extract_key(element)
       value = extract_value(element)
     end
@@ -109,7 +110,7 @@ total_start_time = Time.now
 files.each_index do |i|
   iteration_start_time = Time.now
   # Read the file:
-  dcm = DObject.new(files[i], :verbose => false)
+  dcm = DObject.read(files[i])
   # If the file was read successfully as a DICOM file, go ahead and extract content:
   if dcm.read_success
     # Extract a hash of with tag/data-element-value as key/value:

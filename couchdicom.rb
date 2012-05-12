@@ -1,35 +1,35 @@
 # Modules required:
 require 'rubygems'
 require 'find'
-require 'active_record'
 require 'couchrest'
-require 'couchrest_extended_document'
-require 'dicom' # version 0.8
+require 'couchrest_model'
+require 'dicom'
 require 'rmagick'
-require "iconv"
-
 include DICOM
+
+# Constants
+DIRS = ["/Users/simonmd/Desktop/DATASETS/BOUVIER"] # Define the directory to be read
+JPGDIR = "/Users/simonmd/Desktop/WADOS" # Define the directory where JPEGS should be stored
+DBURL = "http://admin:admin@localhost:5984/couchdicom" # Define Database URL. 
+DB_BULK_SAVE_CACHE_LIMIT = 500 # Define Bulk save cache limit
+
 # Intialize logger
 log = Logger.new('couchdicom_import.log')
-  log.level = Logger::INFO
-  log.debug("Created logger")
-  log.info("Program started")
-
-# Define CouchDB server
-SERVER = CouchRest.new
+log.level = Logger::WARN
+log.debug("Created logger")
+log.info("Program started")
+DICOM.logger = log
+DICOM.logger.level = Logger::DEBUG
 
 # Create CouchDB database if it doesn't already exist
-DB = SERVER.database!('couchwado-plus-images')
+DB = CouchRest.database!(DBURL)
 
 # Set the limit of documents for bulk updating
-DB.bulk_save_cache_limit = 500
-
-# Define the directory to be read
-DIRS = ["/type the DICOM directory here"]
-JPGDIR = "WADO cache directory"
+DB.bulk_save_cache_limit = DB_BULK_SAVE_CACHE_LIMIT
 
 # Class to generate a CouchDB extended document
-class Dicomdoc < CouchRest::ExtendedDocument
+class Dicomdoc < CouchRest::Model::Base
+  mass_assign_any_attribute true
   use_database DB
   unique_id :slug
   property :slug, :read_only => true
@@ -63,8 +63,8 @@ end
 def extract_value(element)
   # Read value as CouchDB value for that key:
   cdbvalue = element.value
-  # Convert encoding to UTF-8
-  cdbvalue = Iconv.conv("UTF-8","ISO_8859-1",cdbvalue) if cdbvalue.class == String
+  # Convert encoding to UTF-8 with Ruby 1.9 'encode' method
+  cdbvalue = cdbvalue.encode('utf-8', 'iso-8859-1') if cdbvalue.class == String
   return cdbvalue
 end
 
@@ -76,7 +76,7 @@ def process_children(parent_element)
     if element.children?
       value = process_children(element)
       key = extract_key(element)
-    elsif element.is_a?(DataElement)
+    elsif element.is_a?(Element)
       key = extract_key(element)
       value = extract_value(element)
     end
@@ -89,7 +89,7 @@ def process_children(parent_element)
 end
 
 # Discover all the files contained in the specified directory and all its sub-directories:
-excludes = []
+excludes = ['DICOMDIR']
 files = Array.new()
 for dir in DIRS
   Find.find(dir) do |path|
@@ -112,9 +112,11 @@ total_start_time = Time.now
 files.each_index do |i|
   iteration_start_time = Time.now
   # Read the file:
-  dcm = DObject.new(files[i], :verbose => false)
+  log.info("Attempting to read file #{i} ...")
+  dcm = DObject.read(files[i])
   # If the file was read successfully as a DICOM file, go ahead and extract content:
   if dcm.read_success
+    log.info("Successfully read file #{files[i]}")
     # Extract a hash of with tag/data-element-value as key/value:
     h = process_children(dcm)
     # Save filepath in hash
@@ -127,27 +129,36 @@ files.each_index do |i|
     currentdicom.docuid = h["t00080018"].to_s
     # Create the attachment from the actual dicom file
     currentdicom.create_attachment({:name => 'imagedata', :file => file, :content_type => 'application/dicom'})
+
     # Load pixel data to ImageMagick class
-    image = dcm.get_image_magick.normalize
-    # Save pixeldata as jpeg image in wado cache directory
-    wadoimg_path = "#{JPGDIR}/wado-#{currentdicom.docuid}.jpg"
-    # Write the jpeg for WADO
-    image.write(wadoimg_path)
-    # Read to insert in attachment (SURELY this can be done directly)
-    wadofile = File.new(wadoimg_path) 
-    # Create an attachment from the created jpeg
-    currentdicom.create_attachment({:name => 'wadojpg', :file => wadofile, :content_type => 'image/jpeg'})
+    log.info("Attempting to load pixel data for file #{files[i]} ...")
+    if dcm.image
+      log.info("Pixel data for file #{files[i]} read successfully")
+      image = dcm.image.normalize
+      # Save pixeldata as jpeg image in wado cache directory
+      wadoimg_path = "#{JPGDIR}/wado-#{currentdicom.docuid}.jpg"
+      # Write the jpeg for WADO
+      image.write(wadoimg_path)
+      # Read to insert in attachment (SURELY this can be done directly)
+      wadofile = File.new(wadoimg_path)
+      # Create an attachment from the created jpeg
+      currentdicom.create_attachment({:name => 'wadojpg', :file => wadofile, :content_type => 'image/jpeg'})
+    else
+      log.warn("could not read pixel data for file #{files[i]} ...")
+    end
+
     # Save the CouchDB document
     begin
       currentdicom.save
       # Uncomment if bulk saving is desired (Little performance gain, bottleneck is in dicom reads)
-        # currentdicom.save(bulk  = true)
-    # If an error ocurrs, raise exception and log it
+      # currentdicom.save(bulk  = true)
+      # If an error ocurrs, raise exception and log it
     rescue Exception => exc
       log.warn("Could not save file #{files[i]} to database; Error: #{exc.message}")
     end
 
   end
+
   # Log processing time for the file
   iteration_end_time = Time.now
   iterationtime = iteration_end_time - iteration_start_time
